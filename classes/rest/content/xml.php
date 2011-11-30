@@ -8,6 +8,6 @@
  * @license    http://www.opensource.org/licenses/BSD-3-Clause
  */
  
- interface REST_Response_HTML extends REST_Controller {
-	public function action_html();
+ interface REST_Content_XML extends REST_Controller {
+	public function action_xml();
  }

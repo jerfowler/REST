@@ -1,18 +1,16 @@
 <?php defined('SYSPATH') or die('No direct script access.');
 
 class Controller_REST extends Controller 
-	implements REST_Response_JSON, REST_Response_XML, REST_Response_HTML {
+	implements REST_Content_JSON, REST_Content_XML, REST_Content_HTML {
 
 	protected $_rest;
 	
 	public function before()
 	{
 		parent::before();
-		
-		$options = array(
-		    'method' => Arr::get($_SERVER, 'HTTP_X_HTTP_METHOD_OVERRIDE', $this->request->method())
-		);
-		$this->_rest = REST::instance($this, $options)->execute();
+		$this->_rest = REST::instance($this)
+                        ->override(TRUE)
+                        ->execute();
 	}
 	
 	public function action_json()

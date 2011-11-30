@@ -13,9 +13,31 @@ abstract class REST_Core {
 	protected static $_instance;
 
 	public static $_prefix = array(
-		'model' => 'Model_'
+                'exec' => 'rest_',
+		'model' => 'Model_',
+                'method' => 'REST_Method_',
+                'content' => 'REST_Content_'
 	);
 	
+        public static $_methods = array(
+                'GET',
+                'PUT',
+                'POST',
+                'DELETE',
+                'HEAD',
+                'TRACE',
+                'OPTIONS'
+        );
+        
+        public static $_types = array(
+                'text/html' => 'html',
+                'application/json' => 'json',
+                'application/xml' => 'xml',
+                'application/rdf+xml' => 'rdf',
+                'application/rss+xml' => 'rss',
+                'application/atom+xml' => 'atom'
+        );
+        
 	/**
 	 * Singleton pattern
 	 *
@@ -63,10 +85,20 @@ abstract class REST_Core {
 	protected $_method;
 
 	/**
-	 * @var  String  content HTTP content type
+	 * @var  String  content HTTP Accept type
 	 */
 	protected $_content;
 
+	/**
+	 * @var  String  chartype HTTP Accept chartype
+	 */
+	protected $_chartype;        
+        
+        /**
+	 * @var  String  language HTTP Accept language
+	 */
+	protected $_language;
+        
 	/**
 	 * Loads Session and configuration options.
 	 *
@@ -80,12 +112,50 @@ abstract class REST_Core {
 		$this->response(Arr::get($config, 'response', $request->response()));
 		$this->method(Arr::get($config, 'method', $request->method()));
 		$this->model(Arr::get($config, 'model', $request->action()));
-		$this->content(Arr::get($config, 'content', array(Kohana::$content_type)));
+                $this->controller($controller);
+                
+		$this->content(Arr::get($config, 'content', $this->accept()));
 		$this->charset(Arr::get($config, 'charset', array(Kohana::$charset)));
 		$this->language(Arr::get($config, 'language', array(I18n::$lang)));
-		$this->controller($controller);
 	}
 
+        /**
+         * Returns the accepted content types based on Controller's interfaces
+         * 
+         * @return mixed
+         */
+	public function accept()
+	{
+                $accept = array();
+                foreach(self::$_types as $type => $value)
+                {
+                        if ($this->_controller instanceof ${self::$_prefix['content'].$value})
+                        {
+                                $accept[] = $type;
+                        }
+                }
+		return $accept;
+	}        
+
+	/**
+	 * Return the allowed methods of the model
+	 *
+	 * @param   void
+	 * @return  mixed
+	 */
+	public function allowed()
+	{
+		$allowed = array();
+		foreach(self::$_methods as $method)
+		{
+			if ($this->_model instanceof ${self::$_prefix['method'].$method})
+			{
+				$allowed[] = $method;
+			}
+		}
+		return $allowed;
+	}
+        
 	/**
 	 * Set or get the request
 	 *
@@ -200,7 +270,7 @@ abstract class REST_Core {
 	 * @return  String
 	 * @return  void
 	 */
-	public function content(Array $content = NULL)
+	public function content(Array $types = NULL)
 	{
 		if ($method === NULL)
 		{
@@ -208,25 +278,85 @@ abstract class REST_Core {
 			return $this->_content;
 		}
 
+                $request = $this->request();
+                
 		// Act as a setter
-		$this->_content = $this->request()->headers()->preferred_accept($content);
+		$this->_content = $request->headers()->preferred_accept($types);
 		
 		if (FALSE === $this->_content)
 		{
-			throw new Http_Exception_406('Supplied accept mimes: :accept not supported. Supported mimes: :mimes',
+			throw new Http_Exception_406('Supplied Accept types: :accept not supported. Supported types: :types',
 				array(
-					':accept' => (string) $request_header['accept'],
-					':mimes'  => implode(', ', $content)
+					':accept' => $request->headers('Accept'),
+					':types'  => implode(', ', $types)
 				));
 		}
 
 		return $this;
 	}
 
-	public function accept()
-	{
-		return array();
-	}
+        /**
+         * Set or get the charset
+         * 
+         * @param array $charsets
+         * @return REST_Core 
+         */
+        public function charset(Array $charsets = NULL)
+        {
+                if ($charset === NULL)
+                {
+                        // Act as a getter
+                        return $this->_charset;
+                }
+                
+                $request = $this->request();
+                
+                // Act as a setter
+                $this->_charset = $request->headers()->preferred_charset($charsets);
+                
+                if (FALSE === $this->_charset)
+                {
+			throw new Http_Exception_406('Supplied Accept-Charset: :accept not supported. Supported types: :types',
+				array(
+					':accept' => $request->headers('Accept-Charset'),
+					':types'  => implode(', ', $charsets)
+				));
+                }
+                
+                return $this;
+        }
+
+        /**
+         * Set or get the language
+         * 
+         * @param array $charsets
+         * @return REST_Core 
+         */
+        public function language(Array $languages = NULL)
+        {
+                if ($charset === NULL)
+                {
+                        // Act as a getter
+                        return $this->_language;
+                }
+                
+                $request = $this->request();
+                
+                // Act as a setter
+                $this->_language = $request->headers()->preferred_language($languages);
+                
+                if (FALSE === $this->_language)
+                {
+			throw new Http_Exception_406('Supplied Accept-Language: :accept not supported. Supported languages: :types',
+				array(
+					':accept' => $request->headers('Accept-Language'),
+					':types'  => implode(', ', $languages)
+				));
+                }
+                
+                return $this;
+        }
+
 	
 	/**
 	 * Set or get the controller
@@ -250,26 +380,25 @@ abstract class REST_Core {
 	}
 
 
-	/**
-	 * Return the allowed methods of the model
-	 *
-	 * @param   void
-	 * @return  mixed
-	 */
-	public function allowed()
-	{
-		$methods = array('GET','PUT','POST','DELETE','HEAD','TRACE','OPTIONS');
-		$allowed = array();
-		foreach($methods as $method)
-		{
-			if ($this->_model instanceof ${'Rest_Method_'.$method})
-			{
-				$allowed[] = $method;
-			}
-		}
-		return $allowed;
-	}
-	
+
+        /**
+         * Allows setting the method from the HTTP_X_HTTP_METHOD_OVERRIDE header
+         * 
+         * @param boolean $override 
+         * @return  void
+         */
+        public function override($override = FALSE)
+        {
+                $request = $this->request();
+                $method = ($override) 
+                        ? Arr::get($_SERVER, 'HTTP_X_HTTP_METHOD_OVERRIDE', $request->method())
+                        : $request->method();
+                
+                $this->method($method);
+                
+                return $this;
+        }
+        
 	/**
 	 * Execute the REST model and output the results
 	 *
@@ -278,13 +407,18 @@ abstract class REST_Core {
 	 */
 	public function execute()
 	{
-		if ( ! $this->_model instanceof ${'Rest_Method_'.$this->_method})
+		if ( ! $this->_model instanceof ${self::$_prefix['method'].$this->_method})
 		{
 			// Send the "Method Not Allowed" response
 			$this->_response->status(405)->headers('Allow', $this->allowed());
 			throw new Http_Exception_405('Method :method not allowed.', array(':method' => $this->_method));
 		}
-		return $this->_model->${'rest_'.$this->_method}($this);
+		$this->_model->${self::$_prefix['exec'].$this->_method}($this);
+                
+                $this->request()->action(self::$_types[$this->_content]);
+                $this->response()->headers('Content-Type', $this->_content);
+                
+                return $this;
 	}
 
 } // End Rest
