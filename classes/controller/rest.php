@@ -3,13 +3,19 @@
 class Controller_REST extends Controller 
 	implements REST_Content_JSON, REST_Content_XML, REST_Content_HTML {
 
+	/**
+	 * Rest object
+	 * @var Rest
+	 */
 	protected $_rest;
 	
 	public function before()
 	{
 		parent::before();
+		
 		$this->_rest = REST::instance($this)
-                        ->override(TRUE)
+                        ->method_override(TRUE)
+			->content_override(TRUE)
                         ->execute();
 	}
 	
@@ -22,8 +28,10 @@ class Controller_REST extends Controller
 	public function action_xml()
 	{
 		$model = $this->_rest->model();
-		$xml = new SimpleXMLElement('<root/>');
-		array_walk_recursive($model->values(), array ($xml, 'addChild'));
+		$name = Rest::common_name('model', $model);
+		$xml = new SimpleXMLElement('<'.$name.'/>');
+		$values = $model->values();
+		array_walk_recursive($values, array ($xml, 'addChild'));
 		$this->response->body($xml->asXML());
 	}
 	

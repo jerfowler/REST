@@ -13,9 +13,9 @@ abstract class REST_Core {
 	protected static $_instance;
 
 	public static $_prefix = array(
-                'exec' => 'rest_',
-		'model' => 'Model_',
-                'method' => 'REST_Method_',
+                'exec'    => 'rest_',
+		'model'   => 'Model_REST_',
+                'method'  => 'REST_Method_',
                 'content' => 'REST_Content_'
 	);
 	
@@ -30,11 +30,11 @@ abstract class REST_Core {
         );
         
         public static $_types = array(
-                'text/html' => 'html',
-                'application/json' => 'json',
-                'application/xml' => 'xml',
-                'application/rdf+xml' => 'rdf',
-                'application/rss+xml' => 'rss',
+                'text/html'            => 'html',
+                'application/json'     => 'json',
+                'application/xml'      => 'xml',
+                'application/rdf+xml'  => 'rdf',
+                'application/rss+xml'  => 'rss',
                 'application/atom+xml' => 'atom'
         );
         
@@ -54,6 +54,37 @@ abstract class REST_Core {
 		return Rest::$_instance;
 	}
 
+	/**
+	 * Adds prefixes to common names to return the full class name
+	 *
+	 * @param string $type The class type
+	 * @param string $name The Common name
+	 * @return string
+	 */
+	public static function class_name($type, $name)
+	{
+		$prefix = isset(Rest::$_prefix[$type])
+			? Rest::$_prefix[$type]
+			: '';
+		return strtolower($prefix.$name);
+	}
+
+	/**
+	 * Removes prefixes of class names to return the common name
+	 *
+	 * @param string $type The class type
+	 * @param object|string $name An instance of a class or the class name
+	 * @return string
+	 */
+	public static function common_name($type, $name)
+	{
+		$name = is_object($name) ? get_class($name) : $name;
+		$prefix = isset(Rest::$_prefix[$type])
+			? Rest::$_prefix[$type]
+			: '';
+		return substr($name, strlen($prefix));
+	}	
+	
 	/**
 	 * @var  Array  configuration options
 	 */
@@ -90,33 +121,37 @@ abstract class REST_Core {
 	protected $_content;
 
 	/**
-	 * @var  String  chartype HTTP Accept chartype
+	 * @var  String  charset HTTP Accept charset
 	 */
-	protected $_chartype;        
+	protected $_charset;        
         
         /**
 	 * @var  String  language HTTP Accept language
 	 */
 	protected $_language;
         
-	/**
-	 * Loads Session and configuration options.
-	 *
-	 * @return  void
-	 */
+        /**
+         * Loads Session and configuration options.
+         * 
+         * @param REST_Controller $controller
+         * @param mixed $config 
+         */
 	public function __construct(REST_Controller $controller, $config = array())
 	{
-		// Save the config in the object
-		$this->_config = $config;
 		$this->request($request = Arr::get($config, 'request', Request::initial()));
 		$this->response(Arr::get($config, 'response', $request->response()));
 		$this->method(Arr::get($config, 'method', $request->method()));
 		$this->model(Arr::get($config, 'model', $request->action()));
+                unset($config['request'], $config['response'], $config['method'], $config['model']);
+                
                 $this->controller($controller);
                 
-		$this->content(Arr::get($config, 'content', $this->accept()));
-		$this->charset(Arr::get($config, 'charset', array(Kohana::$charset)));
-		$this->language(Arr::get($config, 'language', array(I18n::$lang)));
+		$this->content(Arr::get($config, 'types', $this->accept()));
+		$this->charset(Arr::get($config, 'charsets', array(Kohana::$charset)));
+		$this->language(Arr::get($config, 'languages', array(I18n::$lang)));
+                
+                // Save the config in the object
+		$this->_config = $config;
 	}
 
         /**
@@ -127,9 +162,10 @@ abstract class REST_Core {
 	public function accept()
 	{
                 $accept = array();
-                foreach(self::$_types as $type => $value)
+                foreach(Rest::$_types as $type => $value)
                 {
-                        if ($this->_controller instanceof ${self::$_prefix['content'].$value})
+			$content = Rest::class_name('content', $value);
+                        if ($this->_controller instanceof $content)
                         {
                                 $accept[] = $type;
                         }
@@ -146,9 +182,10 @@ abstract class REST_Core {
 	public function allowed()
 	{
 		$allowed = array();
-		foreach(self::$_methods as $method)
+		foreach(Rest::$_methods as $method)
 		{
-			if ($this->_model instanceof ${self::$_prefix['method'].$method})
+			$class = Rest::class_name('method', $method);
+			if ($this->_model instanceof $class)
 			{
 				$allowed[] = $method;
 			}
@@ -156,6 +193,77 @@ abstract class REST_Core {
 		return $allowed;
 	}
         
+	/**
+	 * Get the short-name content type of the request
+	 * @return string
+	 */
+	public function type()
+	{
+		$type = $this->request()->headers('Content-Type');
+		return Arr::get(Rest::$_types, $type, $type);
+	}
+
+	/**
+	 * Retrieves a value from the route parameters.
+	 *
+	 *     $id = $request->param('id');
+	 *
+	 * @param   string   $key      Key of the value
+	 * @param   mixed    $default  Default value if the key is not set
+	 * @return  mixed
+	 */
+	public function param($key = NULL, $default = NULL)
+	{
+		return $this->request()->param($key, $default);
+	}
+
+	/**
+	 * Gets HTTP POST parameters to the request.
+	 *
+	 * @param   mixed  $key    Key or key value pairs to set
+	 * @return  mixed
+	 */
+	public function post($key = NULL)
+	{
+		return $this->request()->post($key);
+	}
+	
+	/**
+	 * Gets HTTP query string.
+	 *
+	 * @param   mixed   $key    Key or key value pairs to set
+	 * @return  mixed
+	 */
+	public function query($key = NULL)
+	{
+		return $this->request()->query($key);
+	}
+	
+	/**
+	 * Gets HTTP body to the request or response. The body is
+	 * included after the header, separated by a single empty new line.
+	 *
+	 * @param   string  $content Content to set to the object
+	 * @param   boolean $array   Return an associative array, json only
+	 * @return  mixed
+	 */
+	public function body($type = NULL, $array = FALSE)
+	{
+		$body = $this->request()->body();
+		$type = ($type) ? $type : $this->type();
+		switch ($type) {
+		    case 'json':
+			return json_decode($body, $array);
+			break;
+		    case 'xml':
+			return new SimpleXMLElement($body);
+			break;
+		    default:
+			return $body;
+			break;
+		}
+	}
+
 	/**
 	 * Set or get the request
 	 *
@@ -241,26 +349,46 @@ abstract class REST_Core {
 		}
 		else
 		{
-			try
-			{
-				$this->_model = new ${$_prefix['model'].$model};
-			}
-			catch(Exception $e)
+			$class = Rest::class_name('model', $model);
+			if (FALSE === class_exists($class))
 			{
 				// Send the "Model Not Found" response
 				$this->_response->status(404);
-				throw new Http_Exception_404('Model :model not found.', array(':model' => $model));			    
+				throw new Http_Exception_404('Resource :model not found.', array(':model' => $model));			    
 			}
+			$this->_model = new $class;
 		}
 		
 		if ( ! $this->_model instanceof REST_Model)
 		{
 			// Send the Internal Server Error response
 			$this->_response->status(500);
-			throw new Http_Exception_500('Model :model does not implement REST_Model.', array(':model' => $model));
+			throw new Http_Exception_500('Class :class does not implement REST_Model.', array(
+                                ':class' => get_class($this->_model)));
 		}
 		
 		return $this;
+	}
+	
+	/**
+	 * Set or get the controller
+	 *
+	 * @param   REST_Controller  $controller  Controller
+	 * @return  REST_Controller
+	 * @return  void
+	 */
+	public function controller(REST_Controller $controller = NULL)
+	{
+		if ($controller === NULL)
+		{
+			// Act as a getter
+			return $this->_controller;
+		}
+
+		// Act as a setter
+		$this->_controller = $controller;
+
+		return $this;	    
 	}
 
 	/**
@@ -272,7 +400,7 @@ abstract class REST_Core {
 	 */
 	public function content(Array $types = NULL)
 	{
-		if ($method === NULL)
+		if ($types === NULL)
 		{
 			// Act as a getter
 			return $this->_content;
@@ -303,7 +431,7 @@ abstract class REST_Core {
          */
         public function charset(Array $charsets = NULL)
         {
-                if ($charset === NULL)
+                if ($charsets === NULL)
                 {
                         // Act as a getter
                         return $this->_charset;
@@ -334,7 +462,7 @@ abstract class REST_Core {
          */
         public function language(Array $languages = NULL)
         {
-                if ($charset === NULL)
+                if ($languages === NULL)
                 {
                         // Act as a getter
                         return $this->_language;
@@ -357,48 +485,69 @@ abstract class REST_Core {
                 return $this;
         }
 
-	
-	/**
-	 * Set or get the controller
-	 *
-	 * @param   REST_Controller  $controller  Controller
-	 * @return  REST_Controller
-	 * @return  void
-	 */
-	public function controller(REST_Controller $controller = NULL)
-	{
-		if ($controller === NULL)
-		{
-			// Act as a getter
-			return $this->_controller;
-		}
-
-		// Act as a setter
-		$this->_controller = $controller;
-
-		return $this;	    
-	}
-
-
-
         /**
          * Allows setting the method from the HTTP_X_HTTP_METHOD_OVERRIDE header
          * 
          * @param boolean $override 
-         * @return  void
+         * @return  Rest
          */
-        public function override($override = FALSE)
+        public function method_override($override = FALSE)
         {
                 $request = $this->request();
                 $method = ($override) 
                         ? Arr::get($_SERVER, 'HTTP_X_HTTP_METHOD_OVERRIDE', $request->method())
                         : $request->method();
-                
                 $this->method($method);
-                
+		
                 return $this;
         }
-        
+
+        /**
+         * Allows setting the content type from the Request param content_type
+         * 
+         * @param boolean $override 
+         * @return  Rest
+         */
+        public function content_override($override = FALSE)
+        {
+		$types = $this->accept();
+		
+		if (FALSE === $override)
+		{
+			$this->content(Arr::get($this->_config, 'types', $types));
+			return $this;
+		}
+		
+		$content = $this->request()->param('content_type', FALSE);
+		if (FALSE === $content) 
+		{
+			// No content_type param used...
+			return $this;
+		}
+			
+		$key = array_search($content, Rest::$_types);
+		if (FALSE === $key)
+		{
+			throw new Http_Exception_406('Supplied Override Type: :accept not supported. Supported types: :types',
+				array(
+					':accept' => $content,
+					':types'  => implode(', ', $types)
+				));
+		}
+		
+		if ( ! in_array($key, $types))
+		{
+			throw new Http_Exception_406('Supplied Content Type: :accept not supported. Supported types: :types',
+				array(
+					':accept' => $key,
+					':types'  => implode(', ', $types)
+				));		    
+		}
+
+		$this->_content = $key;
+		return $this;
+        }	
+	
 	/**
 	 * Execute the REST model and output the results
 	 *
@@ -407,18 +556,52 @@ abstract class REST_Core {
 	 */
 	public function execute()
 	{
-		if ( ! $this->_model instanceof ${self::$_prefix['method'].$this->_method})
+		// Delay verifying method until execute in the event of an override
+		$method = Rest::class_name('method', $this->_method);
+		if ( ! $this->_model instanceof $method)
 		{
 			// Send the "Method Not Allowed" response
 			$this->_response->status(405)->headers('Allow', $this->allowed());
 			throw new Http_Exception_405('Method :method not allowed.', array(':method' => $this->_method));
 		}
-		$this->_model->${self::$_prefix['exec'].$this->_method}($this);
+		
+		// Execute the model's method
+		$exec = Rest::class_name('exec', $this->_method);
+		$this->_model->$exec($this);
                 
-                $this->request()->action(self::$_types[$this->_content]);
-                $this->response()->headers('Content-Type', $this->_content);
-                
+		// Set the action of the controller to the content type
+                $this->request()->action(Rest::$_types[$this->_content]);
+		
+		// Set the Content headers
+		$type = $this->_content.'; charset='.$this->_charset;
+                $this->response()->headers('Content-Type', $type);
+                $this->response()->headers('Content-Language', $this->_language);
+		
                 return $this;
 	}
 
+	public function send_created($id, $code = 201)
+	{
+		$request = $this->request();
+		$url = array(
+			$request->directory(),
+			$request->controller(),
+			strtolower(Rest::common_name('model', $this->_model)),
+			$id
+		);
+		$url = URL::site(implode('/', $url), TRUE, Kohana::$index_file);	
+		$this->request()->redirect($url, $code);
+	}
+	
+	public function send_code($code = 204)
+	{
+		echo $this->response()
+			->status($code)
+			->send_headers()
+			->body();
+
+		// Stop execution
+		exit;
+	}
+	
 } // End Rest
