@@ -3,6 +3,10 @@
 * Copyright:  (c) 2012 Jeremy Fowler
 * License:    http://www.opensource.org/licenses/BSD-3-Clause
 
+##Requires
+* Kohana >= 3.2
+* PHP >= 5.3
+
 ##Features
 * HTTP_X_HTTP_METHOD_OVERRIDE support
 * Cross-Origin Resource Sharing
