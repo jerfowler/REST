@@ -8,6 +8,6 @@
  * @copyright  (c) 2012 Jeremy Fowler
  * @license    http://www.opensource.org/licenses/BSD-3-Clause
  */
- interface REST_Content_RDF extends REST_Controller {
-	public function action_rdf();
+ interface REST_Content_CSV extends REST_Controller {
+	public function action_csv();
  }
