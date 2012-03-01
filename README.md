@@ -1,21 +1,20 @@
-#Kohana RESTful Web Service Library.
-
+#Kohana RESTful Web Service Library
 * Author:     Jeremy Fowler
 * Copyright:  (c) 2012 Jeremy Fowler
 * License:    http://www.opensource.org/licenses/BSD-3-Clause
 
 ##Features
+* HTTP_X_HTTP_METHOD_OVERRIDE support
 * Cross-Origin Resource Sharing
 * ETags enabled
 
 ##Installation
 
-* cd modules
-* git clone git://github.com/jerfowler/REST.git
+* `cd modules`
+* `git clone git://github.com/jerfowler/REST.git`
 * Enable the REST module in bootstrap
 * create REST extended models in classes/model/rest
 * Optional: create your own custom controller_rest
-
 
 ##Controllers handle content type and output
 Each controller must implement one or more of the REST_Content Interfaces
@@ -27,7 +26,6 @@ class Controller_Template_REST extends Controller
 		REST_Content_XML,
 		REST_Content_CSV {
 ```
-
 ###The Rest module gets instantiated in the before method of the controller
 * The model is determined by the Controller's action
 * REST supports HTTP_X_HTTP_METHOD_OVERRIDE by using `method_override(TRUE)`
