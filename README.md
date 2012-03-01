@@ -38,3 +38,33 @@ class Model_REST_Users
 		REST_Method_Get,
 		REST_Method_Post {
 ```
+
+###The Rest module gets instantiated in the before method of the controller
+* REST supports HTTP_X_HTTP_METHOD_OVERRIDE by using `method_override(TRUE)`
+
+```
+/**
+ * Rest object
+ * @var Rest
+ */
+protected $_rest;
+
+public function before()
+{
+	parent::before();
+
+	$this->_rest = REST::instance($this)
+		->method_override(TRUE)
+		->content_override(TRUE)
+		->execute();
+}
+```
+#### Content-Type is auto-detected by the headers
+This can be overridden by using `content_override(TRUE)` and using a special route
+
+```
+Route::set('rest', 'rest/<action>((/<id>)(.<content_type>))')
+	->defaults(array(
+		'controller' => 'rest'
+	));
+```
