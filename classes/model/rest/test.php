@@ -1,6 +1,6 @@
 <?php defined('SYSPATH') or die('No direct script access.');
 
-class Model_REST_Test implements REST_CORS, REST_Method_Basic {
+class Model_REST_Test implements REST_CORS, REST_AUTH, REST_Method_Basic {
 
 	protected static $origin = array(
 		'http://example.com:3001',
@@ -14,10 +14,22 @@ class Model_REST_Test implements REST_CORS, REST_Method_Basic {
 	 * @var mixed
 	 */
 	protected $_data = array(
-		1 => array('one', 'two', 'three'),
-		2 => array('four', 'five', 'six'),
-		3 => array('seven', 'eight', 'nine')
+		array('id' => 1, 'title' => 'one', 'author' => 'Jeremy', 'content' => 'Hi'),
+		array('id' => 2, 'title' => 'two', 'author' => 'Tara', 'content' => 'Hello'),
+		array('id' => 3, 'title' => 'three', 'author' => 'Isaac', 'content' => 'Hey'),
+		array('id' => 4, 'title' => 'four', 'author' => 'Zander', 'content' => 'Yo'),
+		array('id' => 5, 'title' => 'five', 'author' => 'Bryan', 'content' => 'Holla'),
+		array('id' => 6, 'title' => 'six', 'author' => 'Jon', 'content' => 'Ciao'),
+		array('id' => 7, 'title' => 'seven', 'author' => 'Leah', 'content' => 'How do you do?'),
+		array('id' => 8, 'title' => 'eight', 'author' => 'Sean', 'content' => 'Bonjour'),
+		array('id' => 9, 'title' => 'nine', 'author' => 'Scott', 'content' => 'what\'s up')
 	);
+
+	public function rest_auth(Rest $rest)
+	{
+		$user = Auth::instance()->get_user();
+		return $rest->method() == 'OPTIONS' OR $user !== FALSE;
+	}
 
 	/**
 	 * Cross-Origin Resource Sharing
@@ -86,7 +98,6 @@ class Model_REST_Test implements REST_CORS, REST_Method_Basic {
 			// TODO
 			$rest->send_code(403); //Forbidden
 		}
-
 	}
 
 	/**
@@ -121,4 +132,5 @@ class Model_REST_Test implements REST_CORS, REST_Method_Basic {
 		}
 		$rest->send_code(204);
 	}
+
 }

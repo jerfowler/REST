@@ -3,7 +3,7 @@
 /**
  * RESTful web service library.
  *
- * @package    jeremyf76/REST
+ * @package    jerfowler/REST
  * @author     Jeremy Fowler
  * @copyright  (c) 2012 Jeremy Fowler
  * @license    http://www.opensource.org/licenses/BSD-3-Clause
@@ -13,7 +13,7 @@ abstract class REST_Core {
 
 	// REST instance
 	protected static $_instance;
-	public static $_prefix = array(
+	protected static $_prefix = array(
 		'exec' => 'rest_',
 		'model' => 'Model_REST_',
 		'method' => 'REST_Method_',
@@ -46,6 +46,21 @@ abstract class REST_Core {
 		'creds' => null,
 		'age' => null
 	);
+
+	public static function prefix($name, $value)
+	{
+		if (is_null($name))
+		{
+			return self::$_prefix;
+		}
+
+		if (is_null($value))
+		{
+			return Arr::get(self::$_prefix, $name, NULL);
+		}
+
+		self::$_prefix[$name] = $value;
+	}
 
 	/**
 	 * Singleton pattern
@@ -153,6 +168,9 @@ abstract class REST_Core {
 	 */
 	public function __construct(REST_Controller $controller, $config = array())
 	{
+		$default = Kohana::$config->load('rest')->as_array();
+		$config = Arr::merge($default, $config);
+
 		$this->request($request = Arr::get($config, 'request', Request::initial()));
 		$this->response(Arr::get($config, 'response', $request->response()));
 		$this->method(Arr::get($config, 'method', $request->method()));
@@ -182,13 +200,25 @@ abstract class REST_Core {
 		if (!$this->_model instanceof $method)
 		{
 			// Send the "Method Not Allowed" response
-			$this->_response->status(405)->headers('Allow', $this->allowed());
-			throw new Http_Exception_405('Method :method not allowed.', array(':method' => $this->_method));
+			$this->_response->headers('Allow', $this->allowed());
+			$this->send_code(405, array('Method :method not allowed.', array(':method' => $this->_method)));
 		}
 
-		// Check if this is a Cross-Origin Resource Sharing model
+		// Check if this is a Cross-Origin Resource Sharing Model
 		if ($this->_model instanceof REST_CORS)
+		{
 			$this->_model->rest_cors($this);
+		}
+
+		// Check if this is an Authorized Model
+		if ($this->_model instanceof REST_AUTH)
+		{
+			if (FALSE === $this->_model->rest_auth($this))
+			{
+				// Unauthorized
+				$this->send_code(401);
+			}
+		}
 
 		// Execute the model's method, save the result
 		$exec = Rest::class_name('exec', $this->_method);
@@ -353,9 +383,13 @@ abstract class REST_Core {
 		$match = $this->request()->headers('If-None-Match');
 		$etag = $hash($this->result_json());
 		if ($match === $etag)
+		{
 			$this->send_code(304);
+		}
 		else
+		{
 			$this->response()->headers('ETag', $etag);
+		}
 
 		return $this;
 	}
@@ -572,8 +606,7 @@ abstract class REST_Core {
 			if (FALSE === class_exists($class))
 			{
 				// Send the "Model Not Found" response
-				$this->_response->status(404);
-				throw new Http_Exception_404('Resource ":model" not found.', array(':model' => $model));
+				$this->send_code(404, array('Resource ":model" not found.', array(':model' => $model)));
 			}
 			$this->_model = new $class;
 		}
@@ -581,9 +614,7 @@ abstract class REST_Core {
 		if (!$this->_model instanceof REST_Model)
 		{
 			// Send the Internal Server Error response
-			$this->_response->status(500);
-			throw new Http_Exception_500('Class :class does not implement REST_Model.', array(
-				':class' => get_class($this->_model)));
+			$this->send_code(500, array('Class :class does not implement REST_Model.', array(':class' => get_class($this->_model))));
 		}
 
 		return $this;
@@ -632,11 +663,11 @@ abstract class REST_Core {
 
 		if (FALSE === $this->_content)
 		{
-			throw new Http_Exception_406('Supplied Accept types: :accept not supported. Supported types: :types',
+			$this->send_code(406, array('Supplied Accept types: :accept not supported. Supported types: :types',
 				array(
 					':accept' => $request->headers('Accept'),
 					':types' => implode(', ', $types)
-			));
+				)));
 		}
 
 		return $this;
@@ -663,11 +694,11 @@ abstract class REST_Core {
 
 		if (FALSE === $this->_charset)
 		{
-			throw new Http_Exception_406('Supplied Accept-Charset: :accept not supported. Supported types: :types',
+			$this->send_code(406, array('Supplied Accept-Charset: :accept not supported. Supported types: :types',
 				array(
 					':accept' => $request->headers('Accept-Charset'),
 					':types' => implode(', ', $charsets)
-			));
+				)));
 		}
 
 		return $this;
@@ -694,18 +725,18 @@ abstract class REST_Core {
 
 		if (FALSE === $this->_language)
 		{
-			throw new Http_Exception_406('Supplied Accept-Language: :accept not supported. Supported languages: :types',
+			$this->send_code(406, array('Supplied Accept-Language: :accept not supported. Supported languages: :types',
 				array(
 					':accept' => $request->headers('Accept-Language'),
 					':types' => implode(', ', $languages)
-			));
+				)));
 		}
 
 		return $this;
 	}
 
 	/**
-	 * Allows setting the method from the HTTP_X_HTTP_METHOD_OVERRIDE header
+	 * Allows setting the method from the X-HTTP-METHOD-OVERRIDE header
 	 *
 	 * @param boolean $override
 	 * @return  Rest
@@ -713,9 +744,9 @@ abstract class REST_Core {
 	public function method_override($override = FALSE)
 	{
 		$request = $this->request();
-		$method = ($override) ? Arr::get($_SERVER, 'HTTP_X_HTTP_METHOD_OVERRIDE', $request->method()) : $request->method();
+		$method = $request->headers('X-HTTP-METHOD-OVERRIDE');
+		$method = (isset($method) AND $override) ? $method : $request->method();
 		$this->method($method);
-
 		return $this;
 	}
 
@@ -745,20 +776,20 @@ abstract class REST_Core {
 		$key = array_search($content, Rest::$_types);
 		if (FALSE === $key)
 		{
-			throw new Http_Exception_406('Supplied Override Type: :accept not supported. Supported types: :types',
+			$this->send_code(406, array('Supplied Override Type: :accept not supported. Supported types: :types',
 				array(
 					':accept' => $content,
 					':types' => implode(', ', $types)
-			));
+				)));
 		}
 
 		if (!in_array($key, $types))
 		{
-			throw new Http_Exception_406('Supplied Content Type: :accept not supported. Supported types: :types',
+			$this->send_code(406, array('Supplied Content Type: :accept not supported. Supported types: :types',
 				array(
 					':accept' => $key,
 					':types' => implode(', ', $types)
-			));
+				)));
 		}
 
 		$this->_content = $key;
@@ -780,17 +811,34 @@ abstract class REST_Core {
 		$response = $this->response();
 
 		if (isset($cors['origin']))
+		{
 			$response->headers('Access-Control-Allow-Origin', self::join($cors['origin']));
+		}
+
 		if (isset($cors['methods']))
+		{
 			$response->headers('Access-Control-Allow-Methods', self::join($cors['methods']));
+		}
+
 		if (isset($cors['headers']))
+		{
 			$response->headers('Access-Control-Allow-Headers', self::join($cors['headers']));
+		}
+
 		if (isset($cors['expose']))
+		{
 			$response->headers('Access-Control-Expose-Headers', self::join($cors['expose']));
+		}
+
 		if (isset($cors['creds']))
+		{
 			$response->headers('Access-Control-Allow-Credentials', $cors['creds']);
+		}
+
 		if (isset($cors['age']))
+		{
 			$response->headers('Access-Control-Max-Age', $cors['age']);
+		}
 
 		return $this;
 	}
@@ -818,18 +866,55 @@ abstract class REST_Core {
 	 * Sends the response code and exits the application
 	 *
 	 * @param type $code
+	 * @param mixed $body
 	 */
-	public function send_code($code = 204)
+	public function send_code($code = 204, $body = NULL)
 	{
-		echo $this->response()
-			->status($code)
-			->send_headers()
-			->body();
+		// Echo response and exit if we aren't using exceptions
+		if (FALSE === Arr::get($this->_config, 'exceptions', FALSE))
+		{
+			if (is_array($body))
+			{
+				list($str, $pairs) = $body;
+				$body = strtr($str, $pairs);
+			}
+			echo $this->response()
+				->status($code)
+				->send_headers()
+				->body($body);
 
-		// Stop execution
-		exit;
+			// Stop execution
+			exit;
+		}
+		else
+		{
+			// See if special exception class exists
+			$class = 'Http_Exception_'.$code;
+			if (class_exists($class))
+			{
+				if (is_array($body))
+				{
+					list($str, $pairs) = $body;
+					throw new $class($str, $pairs);
+				}
+				else
+				{
+					throw new $class($body);
+				}
+			}
+			else
+			{
+				if (is_array($body))
+				{
+					list($str, $pairs) = $body;
+					throw new HTTP_Exception($str, $pairs, $code);
+				}
+				else
+				{
+					throw new HTTP_Exception($body, NULL, $code);
+				}
+			}
+		}
 	}
-
-
 }
 // End Rest

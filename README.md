@@ -8,16 +8,16 @@
 * PHP >= 5.3
 
 ##Features
-* HTTP_X_HTTP_METHOD_OVERRIDE support
+* X-HTTP-METHOD-OVERRIDE support
 * Cross-Origin Resource Sharing
-* ETags enabled
+* ETags
 
 ##Installation
 
 * `cd modules`
 * `git clone git://github.com/jerfowler/REST.git`
 * Enable the REST module in bootstrap
-* create REST extended models in classes/model/rest
+* Create REST extended models in classes/model/rest
 * Optional: create your own custom controller_rest
 
 ##Controllers handle content type and output
@@ -32,7 +32,7 @@ class Controller_Template_REST extends Controller
 ```
 ###The Rest module gets instantiated in the before method of the controller
 * The model is determined by the Controller's action
-* REST supports HTTP_X_HTTP_METHOD_OVERRIDE by using `method_override(TRUE)`
+* REST supports X-HTTP-METHOD-OVERRIDE by using `method_override(TRUE)`
 
 ```php
 /**

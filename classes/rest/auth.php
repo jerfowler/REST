@@ -9,9 +9,6 @@
  * @license    http://www.opensource.org/licenses/BSD-3-Clause
  */
 
-interface REST_Method_All
-	extends REST_Method_Basic,
-		REST_Method_Head,
-		REST_Method_Trace,
-		REST_Method_Patch,
-		REST_Method_Options {}
+interface REST_AUTH extends REST_Model {
+	public function rest_auth(Rest $rest);
+}
