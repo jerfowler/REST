@@ -4,7 +4,7 @@
  * RESTful web service library.
  *
  * @package    jerfowler/REST
- * @author     Jeremy Fowler
+ * @author     Jeremy Fowler. Edited by Gal Schlezinger.
  * @copyright  (c) 2012 Jeremy Fowler
  * @license    http://www.opensource.org/licenses/BSD-3-Clause
  */
@@ -914,6 +914,21 @@ abstract class REST_Core {
 					throw new HTTP_Exception($body, NULL, $code);
 				}
 			}
+		}
+	}
+	
+	/**
+	 * Validates the logic
+	 * @param boolean $logic the statement to check. TRUE -> okay. FALSE -> failed. 
+	 * @param string $name The name of the error
+	 * @param string $msg The message of the error
+	 * 
+	 * @author Gal Schlezinger <gal@spitfire.co.il>
+	 */
+	public function validate($logic, $name = "", $msg = "") {
+		if (!$logic) {
+			$restError = new REST_Error($name, $msg);
+			$this->send_code("500", $restError);
 		}
 	}
 }
